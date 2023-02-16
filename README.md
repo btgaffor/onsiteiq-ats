@@ -37,7 +37,7 @@ There are two dates returned by the random user generator: birth date and regist
 
 There is just one page in the application, which shows all of the candidates that are currently in the system. To start with, there are no candidates, but you can "recruit" some by clicking the "Find New Candidates" button. This can also be done at any time in the future to load more candidates, for example after finishing approving or rejecting all existing candidates.
 
-There are 4 filter buttons at the top that can be used to look all candidates or just candidates that are pending, approved, or rejected. Clicking the "Find New Candidates" button while filtering will return you to the all candidates list, since the newly loaded candidates will not have been approved or rejected yet.
+There are 4 filter buttons at the top that can be used to look all candidates or just candidates that are pending, approved, or rejected. The "Find New Candidates" button only shows in the all or pending lists, since otherwise the new candidates would not appear to show up due to being filtered out.
 
 Within the list, an individual candidate can be selected, opening a UI for viewing the candidate details, adding a note, and approving or rejecting the candidate. The note will persist on blur. Once selected, the button can be clicked again to "undo" the selection and return the candidate to the pending state.
 
