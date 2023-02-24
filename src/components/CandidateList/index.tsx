@@ -1,7 +1,5 @@
 import { formatDistance } from "date-fns";
 import { useEffect, useState } from "react";
-import { match, variantModule, VariantOf } from "variant";
-import { run } from "../../util";
 import { fetchCandidates } from "../../util/api";
 import {
   loadCandidates,
@@ -12,7 +10,6 @@ import { Candidate } from "../../util/types";
 import CandidateDetails from "./CandidateDetails";
 import {
   Avatar,
-  ButtonRow,
   Card,
   CardApplied,
   CardDetails,
@@ -20,44 +17,55 @@ import {
   CardName,
   CardStatus,
   Container,
-  FilterButton,
-  MobileDetails,
+  FilterFieldSet,
   NewCandidatesButton,
+  SectionHeading,
   UnorderedList,
 } from "./styles";
 
-const State = variantModule({
-  loading: () => ({}),
-  loaded: (
-    candidates: Candidate[],
-    filter: "all" | Candidate["status"],
-    selectedIndex: number | undefined,
-    fetchingMore: boolean
-  ) => ({
-    candidates,
-    filter,
-    selectedIndex,
-    fetchingMore,
-  }),
-});
-export type State = VariantOf<typeof State>;
+type State =
+  | { type: "loading" }
+  | {
+      type: "loaded";
+      candidates: Candidate[];
+      filter: "all" | Candidate["status"];
+      selectedIndex: number | undefined;
+      fetchingMore: boolean;
+    };
 
-interface Props {}
-function CandidateList(props: Props) {
-  const {} = props;
-
-  const [state, setState] = useState<State>(State.loading());
+function CandidateList() {
+  const [state, setState] = useState<State>({ type: "loading" });
+  const [ariaLiveAnnouncement, setAriaLiveAnnouncement] = useState("");
 
   useEffect(() => {
-    run(async () => {
+    loadInitialCandidates();
+    async function loadInitialCandidates() {
       const candidates = await loadCandidates();
-      setState(State.loaded(candidates, "all", 0, false));
-    });
+      setState({
+        type: "loaded",
+        candidates,
+        filter: "all",
+        selectedIndex: 0,
+        fetchingMore: false,
+      });
+    }
   }, []);
 
   function selectFilter(newFilter: "all" | Candidate["status"]) {
     if (state.type !== "loaded") return;
+    const { candidates } = state;
+    const filteredCandidatesLength =
+      newFilter === "all"
+        ? candidates.length
+        : candidates.filter((candidate) => candidate.status === newFilter)
+            .length;
+
     setState({ ...state, filter: newFilter, selectedIndex: undefined });
+    setAriaLiveAnnouncement(
+      `Filtered to ${filteredCandidatesLength} candidate${
+        filteredCandidatesLength === 1 ? "" : "s"
+      }.`
+    );
   }
 
   function selectCandidate(index: number | undefined) {
@@ -118,7 +126,7 @@ function CandidateList(props: Props) {
 
       // try to find the next closest or previous closest candidate that has the status of the current filter
       let cursor: number | undefined = selectedIndex + 1;
-      if (filter == "all") {
+      if (filter === "all") {
         cursor = selectedIndex;
       } else {
         while (
@@ -146,121 +154,132 @@ function CandidateList(props: Props) {
     });
   }
 
-  return match(state, {
-    // Loading data from indexeddb is fast enough that it looks worse to flash a loading state
-    loading: () => null,
-    loaded: (state) => {
-      const { candidates, filter, selectedIndex, fetchingMore } = state;
-      const selectedCandidate =
-        selectedIndex === undefined ? undefined : candidates[selectedIndex];
+  if (state.type === "loading") {
+    return null;
+  }
 
-      const filteredCandidatesLength =
-        filter === "all"
-          ? candidates.length
-          : candidates.filter((candidate) => candidate.status === filter)
-              .length;
+  if (state.type === "loaded") {
+    const { candidates, filter, selectedIndex, fetchingMore } = state;
+    const selectedCandidate =
+      selectedIndex === undefined ? undefined : candidates[selectedIndex];
 
-      return (
-        <Container>
-          <div>
-            <ButtonRow>
-              {["All", "Pending", "Approved", "Rejected"].map((status) => (
-                <FilterButton
-                  selected={filter === status.toLowerCase()}
-                  onClick={() => selectFilter(status.toLowerCase() as any)}
-                  key={status}
-                >
-                  {status}
-                </FilterButton>
-              ))}
-            </ButtonRow>
-            <UnorderedList>
-              {filteredCandidatesLength > 0 ? (
-                candidates.map((candidate, index) => {
-                  if (filter !== "all" && candidate.status !== filter)
-                    return null;
+    const filteredCandidatesLength =
+      filter === "all"
+        ? candidates.length
+        : candidates.filter((candidate) => candidate.status === filter).length;
 
-                  return (
-                    <Card
-                      as="li"
-                      key={candidate.id!}
-                      selected={index === selectedIndex}
-                      onClick={(event: any) => {
-                        // don't handle clicks that bubbled up from child elements
-                        if (
-                          event.target.type !== "textarea" &&
-                          event.target.type !== "button"
-                        ) {
-                          selectCandidate(index);
-                        }
-                      }}
-                    >
-                      <CardMainContent>
-                        <Avatar
-                          src={candidate.picture.thumbnail}
-                          type="thumbnail"
-                        />
-                        <CardDetails>
-                          <CardName>{candidate.name}</CardName>
-                          <CardApplied>
-                            Applied{" "}
-                            {formatDistance(
-                              new Date(candidate.applicationDate),
-                              new Date(),
-                              { addSuffix: true }
-                            )}
-                          </CardApplied>
-                        </CardDetails>
-                        <CardStatus status={candidate.status}>
-                          {candidate.status === "approved" && "✓"}
-                          {candidate.status === "rejected" && "✗"}
-                        </CardStatus>
-                      </CardMainContent>
-                      {index === selectedIndex && (
-                        <MobileDetails>
-                          <CandidateDetails
-                            candidate={candidate}
-                            saveNote={saveNote}
-                            saveStatus={saveStatus}
-                          />
-                        </MobileDetails>
-                      )}
-                    </Card>
-                  );
-                })
-              ) : (
-                <li>
-                  <em>
-                    No visible candidates. Please select another filter or click
-                    the "Find New Candidates" button
-                  </em>
-                </li>
-              )}
-            </UnorderedList>
-            {(filter === "all" || filter === "pending") && (
-              <NewCandidatesButton
-                disabled={fetchingMore}
-                onClick={findNewCandidates}
-              >
-                Find New Candidates
-              </NewCandidatesButton>
-            )}
-          </div>
-          <div>
-            {selectedCandidate ? (
-              <CandidateDetails
-                candidate={selectedCandidate}
-                saveNote={saveNote}
-                saveStatus={saveStatus}
-              />
+    return (
+      <Container>
+        <section>
+          <SectionHeading>Candidate List</SectionHeading>
+          <FilterFieldSet className="radio-switch">
+            <legend>Status Filter</legend>
+            {["All", "Pending", "Approved", "Rejected"].map((status) => (
+              <>
+                <input
+                  type="radio"
+                  name="filter"
+                  id={status}
+                  value={status}
+                  checked={filter === status.toLowerCase()}
+                  onChange={() => selectFilter(status.toLowerCase() as any)}
+                />
+                <label htmlFor={status}>{status}</label>
+              </>
+            ))}
+            <div aria-live="polite">{ariaLiveAnnouncement}</div>
+          </FilterFieldSet>
+
+          <UnorderedList>
+            {filteredCandidatesLength > 0 ? (
+              candidates.map((candidate, index) => {
+                if (filter !== "all" && candidate.status !== filter)
+                  return null;
+
+                return (
+                  <Card
+                    as="li"
+                    role="list-item"
+                    key={candidate.id!}
+                    selected={index === selectedIndex}
+                    onClick={(event: any) => {
+                      // don't handle clicks that bubbled up from child elements
+                      if (
+                        event.target.type !== "textarea" &&
+                        event.target.type !== "button"
+                      ) {
+                        selectCandidate(index);
+                      }
+                    }}
+                  >
+                    <CardMainContent>
+                      <Avatar
+                        src={candidate.picture.thumbnail}
+                        type="thumbnail"
+                        alt={`profile image of ${candidate.name}`}
+                      />
+                      <CardDetails>
+                        <CardName>{candidate.name}</CardName>
+                        <CardApplied>
+                          Applied{" "}
+                          {formatDistance(
+                            new Date(candidate.applicationDate),
+                            new Date(),
+                            { addSuffix: true }
+                          )}
+                        </CardApplied>
+                      </CardDetails>
+                      <CardStatus status={candidate.status}>
+                        {candidate.status === "approved" && "✓"}
+                        {candidate.status === "rejected" && "✗"}
+                      </CardStatus>
+                    </CardMainContent>
+                    {index === selectedIndex && (
+                      <CandidateDetails
+                        className="mobile-only"
+                        candidate={candidate}
+                        saveNote={saveNote}
+                        saveStatus={saveStatus}
+                      />
+                    )}
+                  </Card>
+                );
+              })
             ) : (
-              <em>No candidate selected.</em>
+              <li>
+                <em>
+                  No visible candidates. Please select another filter or click
+                  the "Find New Candidates" button
+                </em>
+              </li>
             )}
-          </div>
-        </Container>
-      );
-    },
-  });
+          </UnorderedList>
+          {(filter === "all" || filter === "pending") && (
+            <NewCandidatesButton
+              disabled={fetchingMore}
+              onClick={findNewCandidates}
+            >
+              Find New Candidates
+            </NewCandidatesButton>
+          )}
+        </section>
+        {selectedCandidate ? (
+          <CandidateDetails
+            candidate={selectedCandidate}
+            saveNote={saveNote}
+            saveStatus={saveStatus}
+            className="desktop-only"
+          />
+        ) : (
+          <em className="desktop-only">No candidate selected.</em>
+        )}
+      </Container>
+    );
+  }
+
+  // If all the state cases have been handled, then the type of `state` has been narrowed to `never`
+  // by this point. Typescript will error here if that's not the case.
+  return ((_state: never) => null)(state);
 }
 
 export default CandidateList;

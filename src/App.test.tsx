@@ -1,19 +1,19 @@
-import { render, screen, act, fireEvent } from "@testing-library/react";
+import { render, screen, act, fireEvent, waitForElementToBeRemoved, waitFor } from "@testing-library/react";
 import App from "./App";
 import * as db from "./util/db";
 import * as API from "./util/api";
 import { Candidate } from "./util/types";
+import userEvent from "@testing-library/user-event";
 
 describe("App", () => {
   async function mount(initialCandidates: Candidate[]) {
     jest.spyOn(db, "loadCandidates").mockResolvedValue(initialCandidates);
-    const saveCandidate = jest.spyOn(db, "saveCandidate");
+    const saveCandidate = jest.spyOn(db, "saveCandidate").mockResolvedValue();;
     const saveNewCandidates = jest.spyOn(db, "saveNewCandidates");
     const fetchCandidates = jest.spyOn(API, "fetchCandidates");
 
-    await act(() => {
-      render(<App />);
-    });
+    render(<App />);
+    await screen.findByText('All');
 
     return {
       saveCandidate,
@@ -90,25 +90,19 @@ describe("App", () => {
     expect(screen.getAllByText("Bárbara Fogaça").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Kaya Van Kesteren").length).toBeGreaterThan(0);
 
-    await act(() => {
-      screen.getByText("Pending").click();
-    });
+    userEvent.click(screen.getByText("Pending"))
 
     expect(screen.getAllByText("Abigail Carter").length).toBeGreaterThan(0);
     expect(screen.queryAllByText("Bárbara Fogaça").length).toEqual(0);
     expect(screen.queryAllByText("Kaya Van Kesteren").length).toEqual(0);
 
-    await act(() => {
-      screen.getByText("Approved").click();
-    });
+    userEvent.click(screen.getByText("Approved"))
 
     expect(screen.queryAllByText("Abigail Carter").length).toEqual(0);
     expect(screen.getAllByText("Bárbara Fogaça").length).toBeGreaterThan(0);
     expect(screen.queryAllByText("Kaya Van Kesteren").length).toEqual(0);
 
-    await act(() => {
-      screen.getByText("Rejected").click();
-    });
+    userEvent.click(screen.getByText("Rejected"))
 
     expect(screen.queryAllByText("Abigail Carter").length).toEqual(0);
     expect(screen.queryAllByText("Bárbara Fogaça").length).toEqual(0);
@@ -151,28 +145,19 @@ describe("App", () => {
 
     const { saveCandidate } = await mount(candidates);
 
-    await act(async () => {
-      fireEvent.change(screen.getAllByRole("textbox")[0], {
-        target: { value: "changed note" },
-      });
-      fireEvent.blur(screen.getAllByRole("textbox")[0]);
-    });
-
+    userEvent.type(screen.getAllByRole("textbox")[0], 'changed note');
+    userEvent.click(document.body); // trigger blur
     expect(screen.getAllByText("changed note").length).toBeGreaterThan(0);
     expect(
       saveCandidate.mock.calls[saveCandidate.mock.calls.length - 1][0].note
     ).toEqual("changed note");
 
     // make sure that selecting a different candidate clears the note
-    await act(async () => {
-      screen.getByText("Bárbara Fogaça").click();
-    });
+    userEvent.click(screen.getByText("Bárbara Fogaça"))
     expect(screen.queryAllByText("changed note").length).toEqual(0);
 
     // make sure that selecting the original candidate shows their persisted note
-    await act(async () => {
-      screen.getByText("Abigail Carter").click();
-    });
+    userEvent.click(screen.getByText("Abigail Carter"))
     expect(screen.getAllByText("changed note").length).toBeGreaterThan(0);
   });
 
@@ -200,30 +185,26 @@ describe("App", () => {
     expect(screen.queryAllByText("✓").length).toEqual(0);
     expect(screen.queryAllByText("✗").length).toEqual(0);
 
-    await act(async () => {
-      screen.getAllByText("Approve")[0].click();
-    });
-    expect(screen.getAllByText("✓").length).toBeGreaterThan(0);
+    userEvent.click(screen.getAllByText("Approve")[0])
+    expect((await screen.findAllByText("✓")).length).toBeGreaterThan(0);
     expect(screen.queryAllByText("✗").length).toEqual(0);
     expect(
       saveCandidate.mock.calls[saveCandidate.mock.calls.length - 1][0].status
     ).toEqual("approved");
 
-    await act(async () => {
-      screen.getAllByText("Reject")[0].click();
-    });
+    userEvent.click(screen.getAllByText("Reject")[0])
+    expect((await screen.findAllByText("✗")).length).toBeGreaterThan(0);
     expect(screen.queryAllByText("✓").length).toEqual(0);
-    expect(screen.getAllByText("✗").length).toBeGreaterThan(0);
     expect(
       saveCandidate.mock.calls[saveCandidate.mock.calls.length - 1][0].status
     ).toEqual("rejected");
 
     // clicking the button again will reset the status
-    await act(async () => {
-      screen.getAllByText("Reject")[0].click();
-    });
-    expect(screen.queryAllByText("✓").length).toEqual(0);
-    expect(screen.queryAllByText("✗").length).toEqual(0);
+    userEvent.click(screen.getAllByText("Reject")[0])
+    await waitFor(() => {
+      expect(screen.queryAllByText("✓").length).toEqual(0);
+      expect(screen.queryAllByText("✗").length).toEqual(0);
+    })
     expect(
       saveCandidate.mock.calls[saveCandidate.mock.calls.length - 1][0].status
     ).toEqual("pending");
@@ -265,32 +246,24 @@ describe("App", () => {
 
     await mount(candidates);
 
-    await act(async () => {
-      screen.getByText("Pending").click();
-    });
-    await act(async () => {
-      screen.getByText("Abigail Carter").click();
-    });
+    userEvent.click(screen.getByText("Pending"))
+    userEvent.click(screen.getByText("Abigail Carter"))
 
     expect(screen.getAllByText("Abigail Carter").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Bárbara Fogaça").length).toBeGreaterThan(0);
     expect(screen.getAllByRole("textbox").length).toBeGreaterThan(0);
 
-    await act(async () => {
-      screen.getAllByText("Approve")[0].click();
-    });
+    userEvent.click(screen.getAllByText("Approve")[0])
     expect(screen.queryAllByText("Abigail Carter").length).toEqual(0);
     expect(screen.getAllByText("Bárbara Fogaça").length).toBeGreaterThan(0);
     expect(screen.getAllByRole("textbox").length).toBeGreaterThan(0);
 
-    await act(async () => {
-      screen.getAllByText("Approve")[0].click();
-    });
+    userEvent.click(screen.getAllByText("Approve")[0])
     // once all candidates are approved, they're gone and none is selected
+    expect((await screen.findByText("No candidate selected."))).toBeInTheDocument();
     expect(screen.queryAllByText("Abigail Carter").length).toEqual(0);
     expect(screen.queryAllByText("Bárbara Fogaça").length).toEqual(0);
     expect(screen.queryAllByRole("textbox").length).toEqual(0);
-    expect(screen.getByText("No candidate selected.")).toBeInTheDocument();
   });
 
   it('allows "recruiting" more candidates', async () => {
@@ -316,9 +289,7 @@ describe("App", () => {
 
     expect(screen.queryAllByText("Abigail Carter").length).toEqual(0);
 
-    await act(async () => {
-      screen.getByText("Find New Candidates").click();
-    });
-    expect(screen.getAllByText("Abigail Carter").length).toBeGreaterThan(0);
+    userEvent.click(screen.getByText("Find New Candidates"))
+    expect((await screen.findAllByText("Abigail Carter")).length).toBeGreaterThan(0);
   });
 });

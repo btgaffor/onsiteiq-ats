@@ -55,10 +55,6 @@ This project was bootstrapped with [Create React App](https://github.com/faceboo
 
 I use typescript exclusively (when possible) due to the safety, maintainability, and design patterns it enables.
 
-## Variant
-
-[Variant](https://github.com/paarthenon/variant) is a utility for creating [discriminated unions](https://www.typescriptlang.org/docs/handbook/2/narrowing.html#discriminated-unions) in typescript. This allows for very tight state management that leverages typescript to ensure that all cases are covered. It also provides convenient state constructors and type narrowing to avoid boilerplate code.
-
 ## IDB
 
 I used indexeddb for my data persistence because it provides funcitonality that would most closely mimic a backend API's data structure. To that end, I like to use a library called [IDB](https://github.com/jakearchibald/idb), which wraps the underlying indexeddb API with promises and light utilities without obscuring that original API with heavy logic.
